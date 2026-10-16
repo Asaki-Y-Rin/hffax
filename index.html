@@ -92,7 +92,10 @@
     border: 1.5px dashed var(--line2); border-radius: var(--radius);
     padding: 14px; text-align: center; cursor: pointer;
     background: rgba(74,168,255,.045); transition: .15s;
+    -webkit-tap-highlight-color: transparent;
   }
+  #dropZone:hover { border-color: var(--acc2); background: rgba(74,168,255,.09); }
+  #dropZone:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
   #dropZone.hot { border-color: var(--acc); background: rgba(56,214,192,.12); }
   #dropZone .big { font-weight: 600; }
   #dropZone .small { color: var(--dim); font-size: 12px; margin-top: 3px; }
@@ -233,11 +236,12 @@
   <div class="col">
     <section class="card">
       <h2>图像输入</h2>
-      <div id="dropZone">
-        <div class="big">拖入图片，或按 Ctrl+V 粘贴，或点击选择</div>
-        <div class="small">PNG / JPEG / WebP / BMP / GIF · 全部在本机处理，不上传</div>
+      <div id="dropZone" role="button" tabindex="0" aria-label="选择或拖入图像文件">
+        <div class="big">点击这里选择图片</div>
+        <div class="small">也可以把图片拖进来，或按 Ctrl+V 粘贴 · PNG / JPEG / WebP / BMP / GIF · 全部在本机处理，不上传</div>
       </div>
-      <input type="file" id="fileInput" accept="image/*" hidden>
+      <input type="file" id="fileInput" accept="image/*"
+             style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;clip:rect(0 0 0 0)">
       <div id="srcInfo">未载入图像</div>
 
       <div class="canvas-wrap"><canvas id="preview"></canvas></div>
@@ -2270,6 +2274,17 @@
       if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
         loadImageFile(e.dataTransfer.files[0]);
       }
+    });
+    // Clicking (or pressing Enter/Space on) the zone opens the file picker.
+    // Drag & drop is native browser behaviour and kept working even while this
+    // handler was missing — which is exactly why a test has to click the zone.
+    function openFilePicker(e) {
+      if (e && e.preventDefault) e.preventDefault();
+      $('fileInput').click();
+    }
+    drop.addEventListener('click', openFilePicker);
+    drop.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') openFilePicker(e);
     });
     window.addEventListener('paste', function (e) {
       if (!e.clipboardData) return;
