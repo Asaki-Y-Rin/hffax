@@ -1,0 +1,54 @@
+{
+  "name": "golden-basic-ioc576",
+  "note": "Deterministic transmission used to cross-check the JavaScript encoder (src/hffax.js) against the independent Python reference implementation (tools/golden/reference_encoder.py). Parameters are chosen so that every arithmetic operation is exact in IEEE-754 binary64 (outputLevel = 0.5, startToneHz/stopToneHz/whiteHz/blackHz all integer multiples of fs/LUT_SIZE), which makes byte-identical PCM possible across platforms and languages.",
+  "image": {
+    "sourceWidth": 64,
+    "sourceHeight": 123,
+    "formula": "v(x,y) = (x*4 + y) & 255  -- resampled by the caller to 16 x 12",
+    "width": 16,
+    "height": 12,
+    "data_formula": "(x*16 + y*4) & 255, row-major, 16 columns x 12 rows",
+    "data_hex": "00102030405060708090a0b0c0d0e0f004142434445464748494a4b4c4d4e4f408182838485868788898a8b8c8d8e8f80c1c2c3c4c5c6c7c8c9cacbcccdcecfc102030405060708090a0b0c0d0e0f000142434445464748494a4b4c4d4e4f404182838485868788898a8b8c8d8e8f8081c2c3c4c5c6c7c8c9cacbcccdcecfc0c2030405060708090a0b0c0d0e0f000102434445464748494a4b4c4d4e4f404142838485868788898a8b8c8d8e8f808182c3c4c5c6c7c8c9cacbcccdcecfc0c1c"
+  },
+  "config": {
+    "sampleRate": 48000,
+    "lineRateLpm": 120,
+    "ioc": 576,
+    "width": 16,
+    "maxLines": 576,
+    "whiteHz": 1500,
+    "blackHz": 2300,
+    "modulation": "fm",
+    "polarity": "positive",
+    "outputLevel": 0.5,
+    "pixelClock": "exact",
+    "phasingEnabled": true,
+    "phasingBlackPercent": 5,
+    "startToneEnabled": false,
+    "stopToneEnabled": true,
+    "stopToneSeconds": 1,
+    "stopToneHz": 450,
+    "stopBlackLines": 1,
+    "preserveAspect": true,
+    "dither": "none",
+    "gamma": 1.0,
+    "autoContrast": false,
+    "invert": false,
+    "lowPassEnabled": false
+  },
+  "sink": {
+    "blockSamples": 1024
+  },
+  "expected": {
+    "lines": 12,
+    "samples_per_line": 24000,
+    "phasing_samples": 24000,
+    "image_samples": 288000,
+    "stop_black_samples": 24000,
+    "stop_tone_samples": 48000,
+    "total_samples": 384000,
+    "pcm_bytes": 768000,
+    "peak": 0.5,
+    "pcm_sha256": "6ef3e43704b1ed85b50fa9c8850a2c53ab8c476484938d1c5310a7922e228e86"
+  }
+}

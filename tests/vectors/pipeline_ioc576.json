@@ -1,0 +1,54 @@
+{
+  "name": "plain-pipeline-ioc576",
+  "note": "End-to-end check of the plain (non-golden) API path: PIL loads a PNG, prepareRaster resamples and conditions it, the encoder writes 12 lines. Narrow geometry keeps it fast, the pipeline is identical to the 1800 px / 576 line case.",
+  "image": {
+    "sourceWidth": 64,
+    "sourceHeight": 96,
+    "formula": "v(x,y) = ((x * 4) ^ (y * 3)) & 255 -- synthetic texture, resampled to 16 px/line",
+    "width": 16,
+    "height": 12,
+    "data_formula": "((x * 4) ^ (y * 3)) & 255, row-major, 16 columns x 12 rows",
+    "data_hex": "0004080c1014181c2024282c3034383c03070b0f13171b1f23272b2f33373b3f06020e0a16121e1a26222e2a36323e3a090d0105191d1115292d2125393d31350c0804001c1814102c2824203c3834300f0b07031f1b17132f2b27233f3b373312161a1e02060a0e32363a3e22262a2e15111d1905010d0935313d3925212d29181c1014080c0004383c3034282c20241b1f13170b0f03073b3f33372b2f23271e1a16120e0a06023e3a36322e2a26222125292d3135393d0105090d1115191d"
+  },
+  "config": {
+    "sampleRate": 48000,
+    "lineRateLpm": 120,
+    "ioc": 576,
+    "width": 16,
+    "maxLines": 576,
+    "whiteHz": 1500,
+    "blackHz": 2300,
+    "modulation": "fm",
+    "polarity": "positive",
+    "outputLevel": 0.5,
+    "pixelClock": "exact",
+    "phasingEnabled": true,
+    "phasingBlackPercent": 5,
+    "startToneEnabled": false,
+    "stopToneEnabled": true,
+    "stopToneSeconds": 0.5,
+    "stopToneHz": 450,
+    "stopBlackLines": 1,
+    "preserveAspect": true,
+    "dither": "none",
+    "gamma": 1.0,
+    "autoContrast": false,
+    "invert": false,
+    "lowPassEnabled": false
+  },
+  "sink": {
+    "blockSamples": 1024
+  },
+  "expected": {
+    "lines": 12,
+    "samples_per_line": 24000,
+    "phasing_samples": 24000,
+    "image_samples": 288000,
+    "stop_black_samples": 24000,
+    "stop_tone_samples": 24000,
+    "total_samples": 360000,
+    "pcm_bytes": 720000,
+    "peak": 0.5,
+    "pcm_sha256": null
+  }
+}

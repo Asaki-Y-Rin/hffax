@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="HF WEATHER FAX 气象传真编码器：把图片编码为 WMO 标准的短波气象传真音频（IOC 576 / 120 lpm / 1500-2300 Hz），单文件离线网页，Windows 与 Android 浏览器均可运行。">
+<meta name="theme-color" content="#0a1120">
+<title>HF WEATHER FAX 编码器 · 气象传真</title>
+<style>
+  :root {
+    --bg: #070d18;
+    --bg2: #0b1424;
+    --panel: #101b2e;
+    --panel2: #142239;
+    --line: #1e3252;
+    --line2: #27436b;
+    --text: #dce7f7;
+    --dim: #8ea3c4;
+    --dim2: #64789a;
+    --acc: #38d6c0;
+    --acc2: #4aa8ff;
+    --warn: #ffb347;
+    --bad: #ff6b6b;
+    --ok: #4ade80;
+    --radius: 10px;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 12% -10%, #12233d 0%, transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, #0d2b2a 0%, transparent 55%),
+      var(--bg);
+    color: var(--text);
+    font: 14px/1.55 system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    -webkit-text-size-adjust: 100%;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px;
+    padding: 14px 18px 12px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(20,34,57,.85), rgba(10,17,32,.55));
+    backdrop-filter: blur(6px);
+    position: sticky; top: 0; z-index: 20;
+  }
+  h1 { font-size: 17px; margin: 0; letter-spacing: .4px; font-weight: 650; }
+  h1 .tag {
+    font: 600 10px/1 var(--mono); letter-spacing: 1.4px; color: #04202a;
+    background: var(--acc); padding: 4px 6px; border-radius: 5px; margin-left: 8px;
+    vertical-align: middle;
+  }
+  .specline { color: var(--dim); font: 12px/1.5 var(--mono); }
+  #caps { margin-left: auto; color: var(--dim2); font: 11px/1.5 var(--mono); }
+
+  /* ---------- layout ---------- */
+  main {
+    display: grid; gap: 16px; padding: 16px;
+    grid-template-columns: minmax(340px, 1.05fr) minmax(340px, 1fr);
+    align-items: start;
+    max-width: 1500px; margin: 0 auto;
+  }
+  @media (max-width: 980px) { main { grid-template-columns: 1fr; padding: 12px; } }
+
+  section.card {
+    background: linear-gradient(180deg, var(--panel), var(--panel2));
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 16px;
+    box-shadow: 0 10px 30px -20px #000;
+  }
+  section.card > h2 {
+    font-size: 13px; margin: 0 0 12px; letter-spacing: 1px; text-transform: uppercase;
+    color: var(--acc); font-weight: 650;
+    display: flex; align-items: center; gap: 8px;
+  }
+  section.card > h2::after {
+    content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line2), transparent);
+  }
+  .col { min-width: 0; }
+  #warnings {
+    display: none; margin-top: 10px; border-left: 3px solid var(--warn);
+    background: rgba(255,179,71,.09); border-radius: 0 6px 6px 0; padding: 8px 10px;
+  }
+  .warn-item { color: #ffd9a0; font-size: 12.5px; margin: 3px 0; }
+  .warn-item::before { content: "⚠ "; }
+
+  /* ---------- drop zone / source ---------- */
+  #dropZone {
+    border: 1.5px dashed var(--line2); border-radius: var(--radius);
+    padding: 14px; text-align: center; cursor: pointer;
+    background: rgba(74,168,255,.045); transition: .15s;
+  }
+  #dropZone.hot { border-color: var(--acc); background: rgba(56,214,192,.12); }
+  #dropZone .big { font-weight: 600; }
+  #dropZone .small { color: var(--dim); font-size: 12px; margin-top: 3px; }
+  #srcInfo { font: 11.5px/1.5 var(--mono); color: var(--dim); margin-top: 8px; word-break: break-all; }
+
+  /* ---------- preview ---------- */
+  .canvas-wrap {
+    margin-top: 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: #060b14; padding: 6px; overflow: auto; max-height: 60vh;
+  }
+  #preview { display: block; width: 100%; height: auto; image-rendering: pixelated; background: #060b14; }
+  .canvas-note { color: var(--dim2); font-size: 11.5px; margin-top: 6px; }
+
+  /* ---------- form ---------- */
+  details.grp { border: 1px solid var(--line); border-radius: 8px; margin-bottom: 8px; background: rgba(6,11,20,.4); }
+  details.grp[open] { background: rgba(6,11,20,.65); }
+  details.grp > summary {
+    cursor: pointer; padding: 9px 11px; font-weight: 600; font-size: 13px;
+    list-style: none; display: flex; align-items: center; gap: 8px; color: #bcd2ef;
+  }
+  details.grp > summary::-webkit-details-marker { display: none; }
+  details.grp > summary::before { content: "▸"; color: var(--acc); font-size: 11px; transition: .15s; }
+  details.grp[open] > summary::before { transform: rotate(90deg); }
+  .grp-body { padding: 4px 11px 12px; display: grid; gap: 9px; }
+
+  .row { display: grid; grid-template-columns: 1fr 116px; gap: 8px; align-items: center; }
+  .row.wide { grid-template-columns: 1fr; }
+  .row label { color: #c3d5ee; font-size: 12.8px; }
+  .row .hint { display: block; color: var(--dim2); font-size: 11px; margin-top: 1px; }
+  input[type="number"], input[type="text"], select {
+    width: 100%; background: #0a1424; color: var(--text);
+    border: 1px solid var(--line2); border-radius: 7px; padding: 6px 8px;
+    font: 12.5px/1.4 var(--mono);
+  }
+  input:focus, select:focus { outline: 2px solid rgba(74,168,255,.45); outline-offset: 1px; }
+  input[type="checkbox"] { width: 17px; height: 17px; accent-color: var(--acc); }
+  .check { display: flex; align-items: center; gap: 9px; }
+  .check input { flex: none; }
+  .check label { font-size: 12.8px; color: #c3d5ee; }
+
+  /* ---------- buttons ---------- */
+  button {
+    font: 600 13px/1 system-ui, "Microsoft YaHei", sans-serif;
+    border-radius: 8px; border: 1px solid var(--line2); cursor: pointer;
+    background: #16273f; color: var(--text); padding: 9px 12px; transition: .15s;
+  }
+  button:hover:not(:disabled) { border-color: var(--acc2); background: #1c3352; }
+  button:disabled { opacity: .42; cursor: not-allowed; }
+  button.primary {
+    background: linear-gradient(180deg, #2fd3bc, #1aa593); border-color: #37e0c8;
+    color: #032019; font-weight: 700; font-size: 14px; padding: 12px;
+  }
+  button.primary:hover:not(:disabled) { filter: brightness(1.08); border-color: #37e0c8; }
+  button.ghost { background: transparent; }
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btnrow > button { flex: 1 1 auto; }
+  .btnrow.tight > button { flex: 0 1 auto; padding: 7px 10px; font-size: 12px; }
+
+  /* ---------- estimates ---------- */
+  .est { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .est .item { background: rgba(6,11,20,.6); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .est .k { color: var(--dim2); font-size: 11px; letter-spacing: .5px; }
+  .est .v { font: 600 14px/1.4 var(--mono); color: #e8f2ff; word-break: break-all; }
+  #estRate, #estSpectrum { display: block; margin-top: 8px; color: var(--dim); font: 11.5px/1.6 var(--mono); }
+
+  /* ---------- progress ---------- */
+  #progressWrap { display: none; margin-top: 12px; }
+  #progressWrap.on { display: block; }
+  .bar-outer { height: 9px; background: #0a1424; border: 1px solid var(--line2); border-radius: 99px; overflow: hidden; }
+  #progressBar { height: 100%; width: 0; background: linear-gradient(90deg, var(--acc2), var(--acc)); transition: width .12s linear; }
+  .bar-label { display: flex; justify-content: space-between; margin-top: 5px; color: var(--dim); font: 11.5px/1.4 var(--mono); }
+
+  /* ---------- result ---------- */
+  #result { display: none; }
+  #result.on { display: block; }
+  #resultName { font: 600 12.5px/1.5 var(--mono); color: var(--acc); word-break: break-all; margin-bottom: 6px; }
+  #resSummary { font-size: 13px; }
+  #resTiming { color: var(--dim); font: 11.5px/1.6 var(--mono); margin-top: 4px; }
+  #playNote { color: var(--dim2); font-size: 11.5px; margin-top: 6px; min-height: 16px; }
+  .signreport {
+    margin-top: 9px; padding: 9px 11px; border-radius: 8px; font-size: 12.5px;
+    background: rgba(6,11,20,.6); border: 1px solid var(--line); color: var(--dim);
+  }
+  .signreport.ok { border-left: 3px solid var(--ok); color: #cdebd8; }
+  .signreport.bad { border-left: 3px solid var(--warn); color: #ffe0b0; }
+  .signreport.unknown { border-left: 3px solid var(--dim2); }
+  .signreport code {
+    font: 11.5px/1.5 var(--mono); background: #0a1424; border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 4px; color: #a9e8de;
+  }
+
+  /* ---------- help ---------- */
+  .help { color: var(--dim); font-size: 12.5px; }
+  .help details { border-top: 1px solid var(--line); padding: 8px 0 2px; }
+  .help details:first-of-type { border-top: 0; }
+  .help summary { cursor: pointer; color: #bcd2ef; font-weight: 600; }
+  .help p { margin: 7px 0; }
+  .help code, .help kbd {
+    font: 11.5px/1.5 var(--mono); background: #0a1424; border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 5px; color: #a9e8de;
+  }
+  .help table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 12px; }
+  .help th, .help td { border: 1px solid var(--line); padding: 5px 7px; text-align: left; }
+  .help th { background: rgba(74,168,255,.08); color: #cfe0f7; font-weight: 600; }
+  .help td.mono { font-family: var(--mono); }
+
+  /* ---------- toast ---------- */
+  #toast {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 60;
+    display: flex; flex-direction: column; gap: 8px; align-items: center;
+    pointer-events: none; width: min(92vw, 520px);
+  }
+  .toast-item {
+    background: #16273f; border: 1px solid var(--line2); border-left: 3px solid var(--acc2);
+    border-radius: 8px; padding: 9px 13px; font-size: 13px; box-shadow: 0 12px 30px -12px #000;
+    animation: pop .18s ease-out; max-width: 100%;
+  }
+  .toast-item.ok { border-left-color: var(--ok); }
+  .toast-item.warn { border-left-color: var(--warn); }
+  .toast-item.out { opacity: 0; transform: translateY(6px); transition: .35s; }
+  @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  footer { color: var(--dim2); font: 11.5px/1.7 var(--mono); padding: 4px 18px 26px; max-width: 1500px; margin: 0 auto; }
+  a { color: var(--acc2); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>HF WEATHER FAX 编码器<span class="tag">WMO</span></h1>
+  <div class="specline">IOC 576 · 120 lpm · 1500–2300 Hz · 中心 1900 Hz · 单文件离线网页</div>
+  <div id="caps"></div>
+</header>
+
+<main>
+  <!-- ============================ LEFT ============================ -->
+  <div class="col">
+    <section class="card">
+      <h2>图像输入</h2>
+      <div id="dropZone">
+        <div class="big">拖入图片，或按 Ctrl+V 粘贴，或点击选择</div>
+        <div class="small">PNG / JPEG / WebP / BMP / GIF · 全部在本机处理，不上传</div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" hidden>
+      <div id="srcInfo">未载入图像</div>
+
+      <div class="canvas-wrap"><canvas id="preview"></canvas></div>
+      <div class="canvas-note">
+        上图就是<strong>实际发射的位图</strong>：已按“每行像素数 × 行数”重采样，并按当前抖动设置处理。
+      </div>
+
+      <div class="btnrow tight" style="margin-top:10px">
+        <button id="btnAutoLines" type="button">按比例自动定行数</button>
+        <button id="btnClear" type="button" disabled>清空图像</button>
+      </div>
+
+      <details class="grp" style="margin-top:12px">
+        <summary>裁剪（可选，像素坐标）</summary>
+        <div class="grp-body">
+          <div class="row"><label>X 起点</label><input type="number" id="cropX" min="0" step="1" placeholder="0"></div>
+          <div class="row"><label>Y 起点</label><input type="number" id="cropY" min="0" step="1" placeholder="0"></div>
+          <div class="row"><label>宽度</label><input type="number" id="cropW" min="1" step="1" placeholder="全部"></div>
+          <div class="row"><label>高度</label><input type="number" id="cropH" min="1" step="1" placeholder="全部"></div>
+          <div class="btnrow tight"><button id="btnCropAll" class="ghost" type="button">恢复整幅</button></div>
+        </div>
+      </details>
+    </section>
+
+    <section class="card" id="panel">
+      <h2>编码参数</h2>
+
+      <div class="row wide" style="margin-bottom:10px">
+        <label>预设<select id="preset"></select></label>
+      </div>
+
+      <details class="grp" open>
+        <summary>标准参数</summary>
+        <div class="grp-body">
+          <div class="row">
+            <label>行速 LPM<span class="hint">60 或 120 行/分钟</span></label>
+            <input type="number" id="lineRateLpm" min="1" max="300" step="1">
+          </div>
+          <div class="row">
+            <label>IOC 合作指数<span class="hint">一鼓行数：576 / 288</span></label>
+            <input type="number" id="ioc" min="1" step="1">
+          </div>
+          <div class="row">
+            <label>每行像素数<span class="hint">1800 px = 3.75 ms/像素</span></label>
+            <input type="number" id="width" min="8" step="1">
+          </div>
+          <div class="row">
+            <label>最大行数<span class="hint">图像行数上限</span></label>
+            <input type="number" id="maxLines" min="1" step="1">
+          </div>
+          <div class="row">
+            <label>采样率 Hz<span class="hint">11025 / 22050 / 44100 / 48000</span></label>
+            <input type="number" id="sampleRate" min="8000" step="1">
+          </div>
+          <div class="row">
+            <label>白电平 Hz</label>
+            <input type="number" id="whiteHz" min="100" step="10">
+          </div>
+          <div class="row">
+            <label>黑电平 Hz</label>
+            <input type="number" id="blackHz" min="100" step="10">
+          </div>
+          <div class="row">
+            <label>调制方式</label>
+            <select id="modulation">
+              <option value="fm">FM 调频（标准）</option>
+              <option value="am">AM 调幅（少见）</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>黑白极性</label>
+            <select id="polarity">
+              <option value="positive">positive：白 1500 / 黑 2300（WMO）</option>
+              <option value="negative">negative：白 2300 / 黑 1500（反相）</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>像素时钟</label>
+            <select id="pixelClock">
+              <option value="exact">精确像素时钟（推荐）</option>
+              <option value="clocked">硬件像素时钟（严格采样计数）</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <details class="grp">
+        <summary>发射格式（起始 / 相位 / 停止）</summary>
+        <div class="grp-body">
+          <div class="check"><input type="checkbox" id="phasingEnabled"><label for="phasingEnabled">发送相位信号（行同步，强烈建议开启）</label></div>
+          <div class="row">
+            <label>相位黑条占比 %<span class="hint">WMO：576 用 5 %，288 用 10 %</span></label>
+            <input type="number" id="phasingBlackPercent" min="0" max="100" step="0.5">
+          </div>
+          <div class="check"><input type="checkbox" id="startToneEnabled"><label for="startToneEnabled">发送起始音（start tone）</label></div>
+          <div class="row"><label>起始音频率 Hz<span class="hint">IOC 576 用 300 Hz，IOC 288 用 675 Hz</span></label><input type="number" id="startToneHz" min="50" step="5"></div>
+          <div class="row"><label>起始音时长 秒</label><input type="number" id="startToneSeconds" min="0" step="0.5"></div>
+          <div class="check"><input type="checkbox" id="stopToneEnabled"><label for="stopToneEnabled">发送停止音（stop tone）</label></div>
+          <div class="row"><label>停止音频率 Hz<span class="hint">标准 450 Hz</span></label><input type="number" id="stopToneHz" min="50" step="5"></div>
+          <div class="row"><label>停止音时长 秒</label><input type="number" id="stopToneSeconds" min="0" step="0.5"></div>
+          <div class="row"><label>停止前黑行数<span class="hint">WMO 用每行 5 % 黑</span></label><input type="number" id="stopBlackLines" min="0" step="1"></div>
+        </div>
+      </details>
+
+      <details class="grp">
+        <summary>图像处理</summary>
+        <div class="grp-body">
+          <div class="check"><input type="checkbox" id="preserveAspect"><label for="preserveAspect">保持长宽比（行数按图像比例自动计算）</label></div>
+          <div class="check"><input type="checkbox" id="autoContrast"><label for="autoContrast">自动对比度（把扫描件的灰底拉到纯黑纯白）</label></div>
+          <div class="check"><input type="checkbox" id="invert"><label for="invert">反相（底片 / 负像）</label></div>
+          <div class="row">
+            <label>Gamma<span class="hint">1.0 不变；&lt;1 提亮，&gt;1 加深</span></label>
+            <input type="number" id="gamma" min="0.1" max="4" step="0.05">
+          </div>
+          <div class="row">
+            <label>抖动<span class="hint">照片用抖动；天气图请用“无”</span></label>
+            <select id="dither">
+              <option value="none">无（连续灰度）</option>
+              <option value="bayer8">Bayer 8×8 有序抖动</option>
+              <option value="bayer4">Bayer 4×4 有序抖动</option>
+              <option value="fs">Floyd–Steinberg 误差扩散</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <details class="grp">
+        <summary>输出与滤波</summary>
+        <div class="grp-body">
+          <div class="row">
+            <label>输出电平（0–1）<span class="hint">0.7 ≈ −3 dBFS，避免削顶</span></label>
+            <input type="number" id="outputLevel" min="0.05" max="1" step="0.05">
+          </div>
+          <div class="check"><input type="checkbox" id="lowPassEnabled"><label for="lowPassEnabled">输出低通滤波（模拟发射机上升时间）</label></div>
+          <div class="row"><label>低通截止 Hz</label><input type="number" id="lowPassCutoffHz" min="500" step="50"></div>
+        </div>
+      </details>
+
+      <div id="warnings"></div>
+    </section>
+  </div>
+
+  <!-- ============================ RIGHT ============================ -->
+  <div class="col">
+    <section class="card">
+      <h2>发射预算</h2>
+      <div class="est">
+        <div class="item"><div class="k">传输行数</div><div class="v" id="estLines">—</div></div>
+        <div class="item"><div class="k">发射位图</div><div class="v" id="estCanvas">—</div></div>
+        <div class="item"><div class="k">总时长</div><div class="v" id="estDuration">—</div></div>
+        <div class="item"><div class="k">WAV 大小</div><div class="v" id="estSize">—</div></div>
+      </div>
+      <span id="estRate">—</span>
+      <span id="estSpectrum">—</span>
+
+      <div class="btnrow" style="margin-top:14px">
+        <button id="btnEncode" class="primary" type="button" disabled>编码为 WAV（Ctrl+Enter）</button>
+        <button id="btnCancel" type="button" disabled>取消</button>
+      </div>
+
+      <div id="progressWrap">
+        <div class="bar-outer"><div id="progressBar"></div></div>
+        <div class="bar-label"><span id="progressLabel">准备中…</span><span id="progressPct">0 %</span></div>
+      </div>
+    </section>
+
+    <section class="card" id="result">
+      <h2>编码结果</h2>
+      <div id="resultName"></div>
+      <div id="resSummary"></div>
+      <div id="resTiming"></div>
+      <div class="btnrow" style="margin-top:12px">
+        <button id="btnDownload" class="primary" type="button" disabled>保存 WAV（Ctrl+S）</button>
+        <button id="btnShare" type="button" disabled>分享到…</button>
+        <button id="btnPlay" type="button" disabled>▶ 试听</button>
+      </div>
+      <div id="playNote"></div>
+
+      <h2 style="margin-top:18px">黑白极性自检</h2>
+      <div class="btnrow tight">
+        <button id="btnSignCheck" type="button" disabled>检查这段音频的极性</button>
+        <button id="btnFlipPolarity" class="ghost" type="button" disabled>反色并重编（一键）</button>
+      </div>
+      <div id="signReport" class="signreport">尚未检查。点上面的按钮会直接判定：这段音频在正常接收机上会不会显示成负像。</div>
+    </section>
+
+    <section class="card">
+      <h2>使用与发射说明</h2>
+      <div class="help">
+        <details open>
+          <summary>怎么把 WAV 发出去？</summary>
+          <p>把生成的 WAV 用播放器（或 SDR 软件的音频发送通道）送到电台的<strong>话筒/数据输入</strong>，用 SSB 发射：</p>
+          <table>
+            <tr><th>设置</th><th>取值</th></tr>
+            <tr><td>模式</td><td class="mono">USB（上边带）或 AM</td></tr>
+            <tr><td>业余 20 m 段</td><td class="mono">14.230 MHz 附近，USB 拨号 14.2281 MHz</td></tr>
+            <tr><td>音频带宽</td><td class="mono">≥ 2.6 kHz，关掉语音压缩 / 降噪</td></tr>
+            <tr><td>驱动电平</td><td class="mono">ALC 不起表，峰值不超过额定功率</td></tr>
+          </table>
+          <p>USB 发射时，1900 Hz 副载波会落到 <code>拨号频率 + 1.9 kHz</code>；接收端把 SSB 解调回音频后用传真解码软件（fldigi、JWX、HF-FAX 等）还原图像。</p>
+        </details>
+        <details>
+          <summary>这套参数是什么标准？</summary>
+          <p>WMO/IMO 模拟气象传真（radio facsimile / WEFAX）：视频信号以 <strong>1500 Hz 表示白、2300 Hz 表示黑</strong>，正频移对应黑；副载波中心 1900 Hz，占用带宽 2550 Hz。每行 500 ms（120 行/分），IOC 576 即一鼓 576 行、鼓周期 288 秒，对应约 3.75 ms 的像素周期。</p>
+          <p>发射格式为：起始音（可选，300 Hz / 5 s）→ 相位行（黑条占行周期 5 %，其余全白，用于接收机锁定行起点）→ 图像行 → 停止序列（黑行 + 450 Hz 停止音）。</p>
+        </details>
+        <details>
+          <summary>常见问题</summary>
+          <p><strong>接收端说图像位置不对？</strong>确认相位信号已开启（默认 5 %），并且接收机的相位/行同步已锁定；起始音只在部分台站使用。</p>
+          <p><strong>图像偏灰、对比度差？</strong>打开“自动对比度”，或先把扫描件调成纯黑纯白再编码。天气图不要开抖动。</p>
+          <p><strong>输出有削顶？</strong>把输出电平降到 0.6–0.7。编码结果里会显示峰值与实际削顶采样数。</p>
+          <p><strong>平板/手机上存不下文件？</strong>点“分享到…”直接发送到网盘、邮件或电台软件；桌面浏览器用“保存 WAV”。</p>
+          <p><strong>能用 PDF 吗？</strong>不能直接解码。请先在系统里把 PDF 页导出成 PNG/JPEG 再拖进来。</p>
+        </details>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  单文件离线应用 —— 无服务器、无上传、无依赖。核心编码引擎与 <span class="mono">src/hffax.js</span> 完全一致，
+  已通过 Python 黄金参考实现逐字节比对与 FFT 频谱验证（黑 2300 Hz / 白 1500 Hz / 停止音 450 Hz）。
+  仅供具备相应许可的业余无线电操作者与气象传真爱好者使用，发射前请确认本地法规与频率授权。
+</footer>
+
+<div id="toast"></div>
+
+<!-- ===================================================================== -->
+<!--  HF FAX signal engine (src/hffax.js, spliced in by tools/build.py)     -->
+<!-- ===================================================================== -->
+<script>
+/*__HFFAX_ENGINE__*/
+</script>
+
+<!-- ===================================================================== -->
+<!--  Application UI (src/app.js, spliced in by tools/build.py)             -->
+<!-- ===================================================================== -->
+<script>
+/*__HFFAX_APP__*/
+</script>
+</body>
+</html>
